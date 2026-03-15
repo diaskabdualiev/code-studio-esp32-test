@@ -1,0 +1,7 @@
+node_modules
+.DS_Store
+.env
+.env.local
+web/.next
+web/node_modules
+services/esp32-compiler/node_modules

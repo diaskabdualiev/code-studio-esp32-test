@@ -1,0 +1,10 @@
+services:
+  esp32-compiler:
+    build:
+      context: ./services/esp32-compiler
+    container_name: esp32-compiler
+    ports:
+      - "8080:8080"
+    environment:
+      - PORT=8080
+      - ARDUINO_CLI_PATH=/app/arduino-cli/arduino-cli

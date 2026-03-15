@@ -1,0 +1,51 @@
+FROM node:20-slim
+
+RUN apt-get update && apt-get install -y \
+    curl \
+    ca-certificates \
+    wget \
+    python3 \
+    git \
+    xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+ARG ARDUINO_CLI_VERSION=1.2.2
+ARG TARGETARCH
+RUN mkdir -p /app/arduino-cli \
+    && case "${TARGETARCH}" in \
+         "amd64") ARCH="64bit" ;; \
+         "arm64") ARCH="ARM64" ;; \
+         *) ARCH="64bit" ;; \
+       esac \
+    && curl -fsSL "https://github.com/arduino/arduino-cli/releases/download/v${ARDUINO_CLI_VERSION}/arduino-cli_${ARDUINO_CLI_VERSION}_Linux_${ARCH}.tar.gz" \
+       | tar -xz -C /app/arduino-cli \
+    && chmod +x /app/arduino-cli/arduino-cli
+
+ENV ARDUINO_DATA_DIR=/app/arduino-data
+ENV ARDUINO_DOWNLOADS_DIR=/app/arduino-data/staging
+ENV ARDUINO_SKETCHBOOK_DIR=/app/arduino-data/sketchbook
+ENV ARDUINO_CLI=/app/arduino-cli/arduino-cli
+
+RUN mkdir -p "${ARDUINO_DATA_DIR}" "${ARDUINO_DOWNLOADS_DIR}" "${ARDUINO_SKETCHBOOK_DIR}" \
+    && ${ARDUINO_CLI} config init \
+    && ${ARDUINO_CLI} config set board_manager.additional_urls "https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json" \
+    && ${ARDUINO_CLI} config set library.enable_unsafe_install true \
+    && ${ARDUINO_CLI} config set network.connection_timeout 600s
+
+RUN for i in 1 2 3 4 5; do \
+      ${ARDUINO_CLI} core update-index --log-level warn && break || (echo "core update-index failed (attempt $i/5)" && sleep 12); \
+    done
+
+RUN for i in 1 2 3 4 5 6 7 8 9 10; do \
+      ${ARDUINO_CLI} core install esp32:esp32 \
+        --log-level warn \
+      && break \
+      || (echo "core install esp32 failed (attempt $i/10), cleaning up and retrying..." \
+          && rm -rf /app/arduino-data/tmp/* \
+          && sleep 10); \
+    done \
+    && rm -rf /app/arduino-data/staging/* /app/arduino-data/tmp/*
+
+RUN ${ARDUINO_CLI} core list | grep -q "esp32:esp32"
